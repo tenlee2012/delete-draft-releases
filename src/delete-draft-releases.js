@@ -24,34 +24,41 @@ async function run() {
     // API Documentation: https://developer.github.com/v3/repos/releases/#list-releases-for-a-repository
     // Octokit Documentation: https://octokit.github.io/rest.js/#octokit-routes-repos-list-releases
     // TODO: Pagination support
-    const listReleasesResponse = await octokit.rest.repos.listReleases({
-      owner,
-      repo,
-      per_page: 100
-    });
+    for (let pageNo = 0; ; pageNo += 1) {
+      const listReleasesResponse = await octokit.rest.repos.listReleases({
+        owner,
+        repo,
+        per_page: 100,
+        page: pageNo
+      });
 
-    if (listReleasesResponse.status !== 200) {
-      throw new Error('Error listing releases');
-    }
+      if (listReleasesResponse.status !== 200) {
+        throw new Error('Error listing releases');
+      }
 
-    const deleteTasks = [];
-    listReleasesResponse.data.forEach((release) => {
-      if (release.draft) {
-        // Check if it meets the threshold
-        if (checkDuration(release.created_at)) {
-          // API Documentation: https://developer.github.com/v3/repos/releases/#delete-a-release
-          // Octokit Documentation: https://octokit.github.io/rest.js/#octokit-routes-repos-delete-release
-          deleteTasks.push(octokit.rest.repos.deleteRelease({ owner, repo, release_id: release.id }));
+      const deleteTasks = [];
+      listReleasesResponse.data.forEach((release) => {
+        if (release.draft) {
+          // Check if it meets the threshold
+          if (checkDuration(release.created_at)) {
+            console.log(`delete ${release.id}`);
+            // API Documentation: https://developer.github.com/v3/repos/releases/#delete-a-release
+            // Octokit Documentation: https://octokit.github.io/rest.js/#octokit-routes-repos-delete-release
+            deleteTasks.push(octokit.rest.repos.deleteRelease({ owner, repo, release_id: release.id }));
+          }
         }
-      }
-    });
+      });
 
-    const results = await Promise.all(deleteTasks);
-    results.forEach((result) => {
-      if (result.status !== 204) {
-        throw new Error('Error deleting releases');
+      const results = await Promise.all(deleteTasks);
+      if (deleteTasks.length === 0) {
+        break;
       }
-    });
+      results.forEach((result) => {
+        if (result.status !== 204) {
+          throw new Error('Error deleting releases');
+        }
+      });
+    }
   } catch (error) {
     core.setFailed(error.message);
   }
