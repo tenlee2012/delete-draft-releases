@@ -26,7 +26,8 @@ async function run() {
     // TODO: Pagination support
     const listReleasesResponse = await octokit.rest.repos.listReleases({
       owner,
-      repo
+      repo,
+      per_page: 100
     });
 
     if (listReleasesResponse.status !== 200) {
